@@ -10,9 +10,9 @@ backend "azurerm" {
     resource_group_name   = "Terraform-rg"
     storage_account_name  = "saro97"
     container_name        = "tfstate"
-    subscription_id       = 
-    tenant_id             = 
-    access_key            = 
+    subscription_id       = "var.subscription"
+    tenant_id             = "var.tenant"
+    access_key            = var.access_key"
 }
 } 
 
