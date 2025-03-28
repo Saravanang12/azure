@@ -12,7 +12,7 @@ backend "azurerm" {
     container_name        = "tfstate"
     subscription_id       = "var.subscription"
     tenant_id             = "var.tenant"
-    access_key            = var.access_key"
+    access_key            = "var.access_key"
 }
 } 
 
