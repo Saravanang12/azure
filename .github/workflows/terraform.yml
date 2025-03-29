@@ -13,6 +13,9 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
+      - name: Install jq (if missing)
+        run: sudo apt-get update && sudo apt-get install -y jq
+
       - name: Azure Login
         uses: azure/login@v2
         with:
@@ -21,21 +24,32 @@ jobs:
       - name: Extract Azure Credentials
         run: |
           echo "Extracting Azure credentials..."
-          echo "TF_VAR_client_id=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.clientId')" >> $GITHUB_ENV
-          echo "TF_VAR_client_secret=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.clientSecret')" >> $GITHUB_ENV
-          echo "TF_VAR_subscription_id=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.subscriptionId')" >> $GITHUB_ENV
-          echo "TF_VAR_tenant_id=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.tenantId')" >> $GITHUB_ENV
+          
+          export TF_VAR_client_id=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.clientId')
+          export TF_VAR_client_secret=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.clientSecret')
+          export TF_VAR_subscription_id=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.subscriptionId')
+          export TF_VAR_tenant_id=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.tenantId')
 
-          echo "ARM_CLIENT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.clientId')" >> $GITHUB_ENV
-          echo "ARM_CLIENT_SECRET=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.clientSecret')" >> $GITHUB_ENV
-          echo "ARM_SUBSCRIPTION_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.subscriptionId')" >> $GITHUB_ENV
-          echo "ARM_TENANT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.tenantId')" >> $GITHUB_ENV
+          export ARM_CLIENT_ID=$TF_VAR_client_id
+          export ARM_CLIENT_SECRET=$TF_VAR_client_secret
+          export ARM_SUBSCRIPTION_ID=$TF_VAR_subscription_id
+          export ARM_TENANT_ID=$TF_VAR_tenant_id
+
+          echo "TF_VAR_client_id=$TF_VAR_client_id" >> $GITHUB_ENV
+          echo "TF_VAR_client_secret=$TF_VAR_client_secret" >> $GITHUB_ENV
+          echo "TF_VAR_subscription_id=$TF_VAR_subscription_id" >> $GITHUB_ENV
+          echo "TF_VAR_tenant_id=$TF_VAR_tenant_id" >> $GITHUB_ENV
+
+          echo "ARM_CLIENT_ID=$ARM_CLIENT_ID" >> $GITHUB_ENV
+          echo "ARM_CLIENT_SECRET=$ARM_CLIENT_SECRET" >> $GITHUB_ENV
+          echo "ARM_SUBSCRIPTION_ID=$ARM_SUBSCRIPTION_ID" >> $GITHUB_ENV
+          echo "ARM_TENANT_ID=$ARM_TENANT_ID" >> $GITHUB_ENV
 
       - name: Debug Environment Variables
         run: |
           echo "✅ Checking extracted credentials..."
-          [ -z "$TF_VAR_client_id" ] && echo "❌ TF_VAR_client_id is EMPTY!" || echo "✅ TF_VAR_client_id: $TF_VAR_client_id"
-          [ -z "$ARM_CLIENT_ID" ] && echo "❌ ARM_CLIENT_ID is EMPTY!" || echo "✅ ARM_CLIENT_ID: $ARM_CLIENT_ID"
+          [ -z "$TF_VAR_client_id" ] && echo "❌ TF_VAR_client_id is EMPTY!" || echo "✅ TF_VAR_client_id is set"
+          [ -z "$ARM_CLIENT_ID" ] && echo "❌ ARM_CLIENT_ID is EMPTY!" || echo "✅ ARM_CLIENT_ID is set"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
