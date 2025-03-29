@@ -8,6 +8,7 @@ on:
 jobs:
   terraform:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -17,16 +18,23 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Extract Azure Credentials
+        run: |
+          echo "TF_VAR_client_id=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.clientId')" >> $GITHUB_ENV
+          echo "TF_VAR_client_secret=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.clientSecret')" >> $GITHUB_ENV
+          echo "TF_VAR_subscription_id=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.subscriptionId')" >> $GITHUB_ENV
+          echo "TF_VAR_tenant_id=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.tenantId')" >> $GITHUB_ENV
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.7
 
-      - name: Terraform Init
+      - name: Initialize Terraform
         run: terraform init
 
       - name: Terraform Plan
-        run: terraform plan -out=tfplan
+        run: terraform plan
 
       - name: Terraform Apply
         run: terraform apply -auto-approve
