@@ -23,27 +23,26 @@ jobs:
         with:
           creds: '${{ secrets.AZURE_CREDENTIALS }}'
            
+ - name: Initialize Terraform
+  env:
+    ARM_SUBSCRIPTION_ID: "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+    ARM_CLIENT_ID: "${{ secrets.AZURE_CLIENT_ID }}"
+    ARM_CLIENT_SECRET: "${{ secrets.AZURE_CLIENT_SECRET }}"
+    ARM_TENANT_ID: "${{ secrets.AZURE_TENANT_ID }}"
+  run: terraform init
 
-      - name: Initialize Terraform
-        env:
-          TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          TF_VAR_client_id: ${{ secrets.AZURE_CLIENT_ID }}
-          TF_VAR_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
-        run: terraform init
+- name: Plan Terraform
+  env:
+    ARM_SUBSCRIPTION_ID: "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+    ARM_CLIENT_ID: "${{ secrets.AZURE_CLIENT_ID }}"
+    ARM_CLIENT_SECRET: "${{ secrets.AZURE_CLIENT_SECRET }}"
+    ARM_TENANT_ID: "${{ secrets.AZURE_TENANT_ID }}"
+  run: terraform plan
 
-      - name: Plan Terraform
-        env:
-          TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          TF_VAR_client_id: ${{ secrets.AZURE_CLIENT_ID }}
-          TF_VAR_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
-        run: terraform plan
-
-      - name: Apply Terraform
-        env:
-          TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          TF_VAR_client_id: ${{ secrets.AZURE_CLIENT_ID }}
-          TF_VAR_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
-        run: terraform apply -auto-approve
+- name: Apply Terraform
+  env:
+    ARM_SUBSCRIPTION_ID: "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+    ARM_CLIENT_ID: "${{ secrets.AZURE_CLIENT_ID }}"
+    ARM_CLIENT_SECRET: "${{ secrets.AZURE_CLIENT_SECRET }}"
+    ARM_TENANT_ID: "${{ secrets.AZURE_TENANT_ID }}"
+  run: terraform apply -auto-approve
