@@ -21,28 +21,28 @@ jobs:
       - name: Azure Login
         uses: azure/login@v2
         with:
-          creds: '${{ secrets.AZURE_CREDENTIALS }}'
-           
- - name: Initialize Terraform
-  env:
-    ARM_SUBSCRIPTION_ID: "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
-    ARM_CLIENT_ID: "${{ secrets.AZURE_CLIENT_ID }}"
-    ARM_CLIENT_SECRET: "${{ secrets.AZURE_CLIENT_SECRET }}"
-    ARM_TENANT_ID: "${{ secrets.AZURE_TENANT_ID }}"
-  run: terraform init
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-- name: Plan Terraform
-  env:
-    ARM_SUBSCRIPTION_ID: "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
-    ARM_CLIENT_ID: "${{ secrets.AZURE_CLIENT_ID }}"
-    ARM_CLIENT_SECRET: "${{ secrets.AZURE_CLIENT_SECRET }}"
-    ARM_TENANT_ID: "${{ secrets.AZURE_TENANT_ID }}"
-  run: terraform plan
+      - name: Initialize Terraform
+        env:
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: terraform init
 
-- name: Apply Terraform
-  env:
-    ARM_SUBSCRIPTION_ID: "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
-    ARM_CLIENT_ID: "${{ secrets.AZURE_CLIENT_ID }}"
-    ARM_CLIENT_SECRET: "${{ secrets.AZURE_CLIENT_SECRET }}"
-    ARM_TENANT_ID: "${{ secrets.AZURE_TENANT_ID }}"
-  run: terraform apply -auto-approve
+      - name: Plan Terraform
+        env:
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: terraform plan
+
+      - name: Apply Terraform
+        env:
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: terraform apply -auto-approve
