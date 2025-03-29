@@ -2,72 +2,48 @@ name: Terraform Deployment
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 env:
-  TERRAFORM_VERSION: 1.5.7
+  TF_VERSION: 1.5.7
 
 jobs:
   terraform:
     runs-on: ubuntu-latest
-    environment: production  # Set your environment name
+    environment: production
     permissions:
       id-token: write
       contents: read
 
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v3
-
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Extract and Set Azure Credentials
-        id: set-creds
-        run: |
-          # Parse the Azure credentials JSON
-          AZ_CREDS=${{ secrets.AZURE_CREDENTIALS }}
-          CLIENT_ID=$(echo "$AZ_CREDS" | jq -r '.clientId')
-          CLIENT_SECRET=$(echo "$AZ_CREDS" | jq -r '.clientSecret')
-          SUBSCRIPTION_ID=$(echo "$AZ_CREDS" | jq -r '.subscriptionId')
-          TENANT_ID=$(echo "$AZ_CREDS" | jq -r '.tenantId')
-
-          # Set both TF_VAR and ARM_ environment variables
-          echo "TF_VAR_client_id=$CLIENT_ID" >> $GITHUB_ENV
-          echo "TF_VAR_client_secret=$CLIENT_SECRET" >> $GITHUB_ENV
-          echo "TF_VAR_subscription_id=$SUBSCRIPTION_ID" >> $GITHUB_ENV
-          echo "TF_VAR_tenant_id=$TENANT_ID" >> $GITHUB_ENV
-
-          echo "ARM_CLIENT_ID=$CLIENT_ID" >> $GITHUB_ENV
-          echo "ARM_CLIENT_SECRET=$CLIENT_SECRET" >> $GITHUB_ENV
-          echo "ARM_SUBSCRIPTION_ID=$SUBSCRIPTION_ID" >> $GITHUB_ENV
-          echo "ARM_TENANT_ID=$TENANT_ID" >> $GITHUB_ENV
-
-      - name: Verify Credentials
-        run: |
-          echo "Client ID: $TF_VAR_client_id"
-          echo "Subscription ID: $TF_VAR_subscription_id"
-          [ -z "$TF_VAR_client_id" ] && { echo "Client ID is empty!"; exit 1; }
-          [ -z "$TF_VAR_client_secret" ] && { echo "Client secret is empty!"; exit 1; }
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
 
       - name: Terraform Init
-        run: terraform init -input=false -backend-config="key=terraform.tfstate"
+        run: |
+          export ARM_CLIENT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .clientId)
+          export ARM_CLIENT_SECRET=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .clientSecret)
+          export ARM_SUBSCRIPTION_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .subscriptionId)
+          export ARM_TENANT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .tenantId)
+          
+          terraform init
 
       - name: Terraform Plan
-        run: terraform plan -input=false
-
-      - name: Terraform Apply
-        if: github.ref == 'refs/heads/main'  # Only apply on main branch
-        run: terraform apply -auto-approve -input=false
+        run: |
+          export ARM_CLIENT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .clientId)
+          export ARM_CLIENT_SECRET=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .clientSecret)
+          export ARM_SUBSCRIPTION_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .subscriptionId)
+          export ARM_TENANT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .tenantId)
+          
+          terraform plan
