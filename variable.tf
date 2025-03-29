@@ -8,6 +8,3 @@ variable tenant {
     default = "b4e7b79a-4313-4444-aff4-9e7c1c6483d4"
 }
 
-variable access_key {
-    type = string
-}
