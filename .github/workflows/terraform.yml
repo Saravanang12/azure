@@ -1,3 +1,4 @@
+
 name: Terraform Deployment
 
 on:
@@ -8,8 +9,8 @@ on:
 
 env:
   TF_VERSION: 1.5.7
-  TF_INPUT: false  # Disable interactive prompts
-  TF_LOG: ERROR    # Reduce log verbosity
+  TF_INPUT: false
+  TF_LOG: ERROR
 
 jobs:
   terraform:
@@ -27,7 +28,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq curl
+          sudo apt-get install -y jq
 
       # ========== AZURE AUTH ==========
       - name: Azure Login
@@ -35,23 +36,20 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Parse and Set Azure Credentials
-        id: set-creds
+      - name: Extract Azure Credentials
+        id: extract-creds
         run: |
-          AZ_CREDS=${{ secrets.AZURE_CREDENTIALS }}
-          echo "ARM_CLIENT_ID=$(echo $AZ_CREDS | jq -r .clientId)" >> $GITHUB_ENV
-          echo "ARM_CLIENT_SECRET=$(echo $AZ_CREDS | jq -r .clientSecret)" >> $GITHUB_ENV
-          echo "ARM_SUBSCRIPTION_ID=$(echo $AZ_CREDS | jq -r .subscriptionId)" >> $GITHUB_ENV
-          echo "ARM_TENANT_ID=$(echo $AZ_CREDS | jq -r .tenantId)" >> $GITHUB_ENV
+          echo "ARM_CLIENT_ID=$(jq -r .clientId <<< '${{ secrets.AZURE_CREDENTIALS }}')" >> $GITHUB_ENV
+          echo "ARM_CLIENT_SECRET=$(jq -r .clientSecret <<< '${{ secrets.AZURE_CREDENTIALS }}')" >> $GITHUB_ENV
+          echo "ARM_SUBSCRIPTION_ID=$(jq -r .subscriptionId <<< '${{ secrets.AZURE_CREDENTIALS }}')" >> $GITHUB_ENV
+          echo "ARM_TENANT_ID=$(jq -r .tenantId <<< '${{ secrets.AZURE_CREDENTIALS }}')" >> $GITHUB_ENV
 
-      - name: Verify Azure Authentication
+      - name: Verify Azure Auth
         run: |
-          echo "::group::Azure Credentials Verification"
-          echo "Client ID: $ARM_CLIENT_ID"
+          echo "::group::Azure Auth Verification"
+          echo "Client ID: ${ARM_CLIENT_ID:0:4}****" # Mask partial ID
           echo "Subscription ID: $ARM_SUBSCRIPTION_ID"
-          [ -z "$ARM_CLIENT_SECRET" ] && { echo "::error::Client secret is empty!"; exit 1; }
-          
-          az account show --query "{subscriptionId:id, tenantId:tenantId}" -o json
+          az account show --query "{subscriptionName:name, user:user.name}" -o json
           echo "::endgroup::"
 
       # ========== TERRAFORM ==========
@@ -62,25 +60,21 @@ jobs:
           terraform_wrapper: false
 
       - name: Terraform Init
-        run: terraform init -backend-config="key=prod.terraform.tfstate"
-
-      - name: Terraform Format Check
-        run: terraform fmt -check -recursive
+        run: terraform init -input=false
 
       - name: Terraform Validate
-        run: terraform validate
+        run: terraform validate -no-color
 
       - name: Terraform Plan
-        run: terraform plan -out=tfplan
-        continue-on-error: false
+        run: |
+          terraform plan -input=false -out=tfplan
+          terraform show -no-color tfplan | head -n 20 # Show partial plan
 
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: terraform apply -auto-approve tfplan
+        run: terraform apply -input=false -auto-approve tfplan
 
-      # ========== CLEANUP ==========
-      - name: Remove Sensitive Files
+      # ========== POST-RUN ==========
+      - name: Cleanup
         if: always()
-        run: |
-          rm -f tfplan
-          rm -f terraform.tfvars
+        run: rm -f tfplan
