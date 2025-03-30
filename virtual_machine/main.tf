@@ -39,7 +39,7 @@ resource "azurerm_network_interface" "nic" {
 }
 
 resource "azurerm_virtual_machine" "vm" {
-  name                  = "var.vmname"
+  name                  = var.vmname
   location              = var.region
   resource_group_name   = var.rgname
   network_interface_ids = [azurerm_network_interface.nic.id]
