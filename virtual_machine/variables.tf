@@ -13,15 +13,18 @@ variable vnname {
 
 variable subnet {
     type = string
+    default = "vmsubnet"
     
 }
 
 variable region {
     type = string
+    default = "south India"
     
 }
 
 variable vmname {
-    type = string   
+    type = string
+    default = "saravanan"
 }
 
