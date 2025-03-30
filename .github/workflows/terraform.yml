@@ -2,89 +2,63 @@ name: Terraform Deployment
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-env:
-  TF_VERSION: 1.5.7
-  TF_INPUT: false
-  TF_LOG: ERROR
+    branches:
+      - main
 
 jobs:
   terraform:
     runs-on: ubuntu-latest
-    environment: production
-    permissions:
-      id-token: write
-      contents: read
 
     steps:
-      # ========== SETUP ==========
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-
-      # ========== AZURE AUTH ==========
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Extract and Mask Azure Credentials
-        id: extract-creds
+      - name: Set Terraform Environment Variables
         run: |
-          # Extract credentials
-          CLIENT_ID=$(jq -r .clientId <<< '${{ secrets.AZURE_CREDENTIALS }}')
-          CLIENT_SECRET=$(jq -r .clientSecret <<< '${{ secrets.AZURE_CREDENTIALS }}')
-          
-          # Mask values in logs
-          echo "::add-mask::$CLIENT_ID"
-          echo "::add-mask::$CLIENT_SECRET"
-          
-          # Set environment variables
-          echo "TF_VAR_client_id=$CLIENT_ID" >> $GITHUB_ENV
-          echo "TF_VAR_client_secret=$CLIENT_SECRET" >> $GITHUB_ENV
-          echo "TF_VAR_subscription_id=$(jq -r .subscriptionId <<< '${{ secrets.AZURE_CREDENTIALS }}')" >> $GITHUB_ENV
-          echo "TF_VAR_tenant_id=$(jq -r .tenantId <<< '${{ secrets.AZURE_CREDENTIALS }}')" >> $GITHUB_ENV
+          echo "Extracting Azure credentials..."
+          echo "TF_VAR_client_id=$(jq -r '.clientId' <<< '${{ secrets.AZURE_CREDENTIALS }}')" >> $GITHUB_ENV
+          echo "TF_VAR_client_secret=$(jq -r '.clientSecret' <<< '${{ secrets.AZURE_CREDENTIALS }}')" >> $GITHUB_ENV
+          echo "TF_VAR_subscription_id=$(jq -r '.subscriptionId' <<< '${{ secrets.AZURE_CREDENTIALS }}')" >> $GITHUB_ENV
+          echo "TF_VAR_tenant_id=$(jq -r '.tenantId' <<< '${{ secrets.AZURE_CREDENTIALS }}')" >> $GITHUB_ENV
 
-      - name: Verify Azure Auth
+          echo "ARM_CLIENT_ID=$(jq -r '.clientId' <<< '${{ secrets.AZURE_CREDENTIALS }}')" >> $GITHUB_ENV
+          echo "ARM_CLIENT_SECRET=$(jq -r '.clientSecret' <<< '${{ secrets.AZURE_CREDENTIALS }}')" >> $GITHUB_ENV
+          echo "ARM_SUBSCRIPTION_ID=$(jq -r '.subscriptionId' <<< '${{ secrets.AZURE_CREDENTIALS }}')" >> $GITHUB_ENV
+          echo "ARM_TENANT_ID=$(jq -r '.tenantId' <<< '${{ secrets.AZURE_CREDENTIALS }}')" >> $GITHUB_ENV
+
+      - name: Debug Environment Variables
         run: |
-          echo "::group::Azure Auth Verification"
-          echo "Client ID: ${TF_VAR_client_id:0:4}****"
-          echo "Subscription ID: $TF_VAR_subscription_id"
-          az account show --query "{subscriptionName:name, user:user.name}" -o json
-          echo "::endgroup::"
+          echo "✅ Checking extracted credentials..."
+          [ -z "$TF_VAR_client_id" ] && echo "❌ TF_VAR_client_id is EMPTY!" || echo "✅ TF_VAR_client_id: $TF_VAR_client_id"
+          [ -z "$ARM_CLIENT_ID" ] && echo "❌ ARM_CLIENT_ID is EMPTY!" || echo "✅ ARM_CLIENT_ID: $ARM_CLIENT_ID"
 
-      # ========== TERRAFORM ==========
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: ${{ env.TF_VERSION }}
-          terraform_wrapper: false
+          terraform_version: 1.5.7
 
-      - name: Terraform Init
+      - name: Initialize Terraform
         run: terraform init -input=false
-
-      - name: Terraform Validate
-        run: terraform validate -no-color
-
+      
       - name: Terraform Plan
         run: |
-          terraform plan \
-            -input=false \
-            -out=tfplan
-          terraform show -no-color tfplan | head -n 20
+          echo "Running Terraform Plan..."
+          terraform plan -input=false \
+            -var="client_id=$TF_VAR_client_id" \
+            -var="client_secret=$TF_VAR_client_secret" \
+            -var="subscription_id=$TF_VAR_subscription_id" \
+            -var="tenant_id=$TF_VAR_tenant_id"
 
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: terraform apply -input=false -auto-approve tfplan
-
-      # ========== POST-RUN ==========
-      - name: Cleanup
-        if: always()
-        run: rm -f tfplan
+        run: |
+          echo "Applying Terraform Changes..."
+          terraform apply -auto-approve -input=false \
+            -var="client_id=$TF_VAR_client_id" \
+            -var="client_secret=$TF_VAR_client_secret" \
+            -var="subscription_id=$TF_VAR_subscription_id" \
+            -var="tenant_id=$TF_VAR_tenant_id"
