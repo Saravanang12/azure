@@ -35,11 +35,20 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Extract Azure Credentials
+      - name: Extract and Mask Azure Credentials
         id: extract-creds
         run: |
-          echo "TF_VAR_client_id=$(jq -r .clientId <<< '${{ secrets.AZURE_CREDENTIALS }}')" >> $GITHUB_ENV
-          echo "TF_VAR_client_secret=$(jq -r .clientSecret <<< '${{ secrets.AZURE_CREDENTIALS }}')" >> $GITHUB_ENV
+          # Extract credentials
+          CLIENT_ID=$(jq -r .clientId <<< '${{ secrets.AZURE_CREDENTIALS }}')
+          CLIENT_SECRET=$(jq -r .clientSecret <<< '${{ secrets.AZURE_CREDENTIALS }}')
+          
+          # Mask values in logs
+          echo "::add-mask::$CLIENT_ID"
+          echo "::add-mask::$CLIENT_SECRET"
+          
+          # Set environment variables
+          echo "TF_VAR_client_id=$CLIENT_ID" >> $GITHUB_ENV
+          echo "TF_VAR_client_secret=$CLIENT_SECRET" >> $GITHUB_ENV
           echo "TF_VAR_subscription_id=$(jq -r .subscriptionId <<< '${{ secrets.AZURE_CREDENTIALS }}')" >> $GITHUB_ENV
           echo "TF_VAR_tenant_id=$(jq -r .tenantId <<< '${{ secrets.AZURE_CREDENTIALS }}')" >> $GITHUB_ENV
 
