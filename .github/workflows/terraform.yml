@@ -35,6 +35,13 @@ jobs:
           echo "ARM_SUBSCRIPTION_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.subscriptionId')" >> $GITHUB_ENV
           echo "ARM_TENANT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r '.tenantId')" >> $GITHUB_ENV
 
+      - name: Debug Credentials Extraction
+        run: |
+          echo "Checking extracted environment variables..."
+          echo "Client ID: $TF_VAR_client_id"
+          echo "Subscription ID: $TF_VAR_subscription_id"
+          echo "Tenant ID: $TF_VAR_tenant_id"
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -44,8 +51,18 @@ jobs:
         run: terraform init
 
       - name: Terraform Plan
-        run: terraform plan -var="client_id=$TF_VAR_client_id" -var="client_secret=$TF_VAR_client_secret" -var="subscription_id=$TF_VAR_subscription_id" -var="tenant_id=$TF_VAR_tenant_id"
+        run: |
+          terraform plan \
+            -var="client_id=$TF_VAR_client_id" \
+            -var="client_secret=$TF_VAR_client_secret" \
+            -var="subscription_id=$TF_VAR_subscription_id" \
+            -var="tenant_id=$TF_VAR_tenant_id"
 
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main'
-        run: terraform apply -auto-approve -var="client_id=$TF_VAR_client_id" -var="client_secret=$TF_VAR_client_secret" -var="subscription_id=$TF_VAR_subscription_id" -var="tenant_id=$TF_VAR_tenant_id"
+        run: |
+          terraform apply -auto-approve \
+            -var="client_id=$TF_VAR_client_id" \
+            -var="client_secret=$TF_VAR_client_secret" \
+            -var="subscription_id=$TF_VAR_subscription_id" \
+            -var="tenant_id=$TF_VAR_tenant_id"
