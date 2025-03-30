@@ -3,9 +3,13 @@ name: Terraform Deployment
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 env:
   TF_VERSION: 1.5.7
+  TF_INPUT: false  # Disable interactive prompts
+  TF_LOG: ERROR    # Reduce log verbosity
 
 jobs:
   terraform:
@@ -16,37 +20,67 @@ jobs:
       contents: read
 
     steps:
+      # ========== SETUP ==========
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Install jq (for JSON parsing)
-        run: sudo apt-get install -y jq
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl
 
+      # ========== AZURE AUTH ==========
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Parse and Set Azure Credentials
+        id: set-creds
+        run: |
+          AZ_CREDS=${{ secrets.AZURE_CREDENTIALS }}
+          echo "ARM_CLIENT_ID=$(echo $AZ_CREDS | jq -r .clientId)" >> $GITHUB_ENV
+          echo "ARM_CLIENT_SECRET=$(echo $AZ_CREDS | jq -r .clientSecret)" >> $GITHUB_ENV
+          echo "ARM_SUBSCRIPTION_ID=$(echo $AZ_CREDS | jq -r .subscriptionId)" >> $GITHUB_ENV
+          echo "ARM_TENANT_ID=$(echo $AZ_CREDS | jq -r .tenantId)" >> $GITHUB_ENV
+
+      - name: Verify Azure Authentication
+        run: |
+          echo "::group::Azure Credentials Verification"
+          echo "Client ID: $ARM_CLIENT_ID"
+          echo "Subscription ID: $ARM_SUBSCRIPTION_ID"
+          [ -z "$ARM_CLIENT_SECRET" ] && { echo "::error::Client secret is empty!"; exit 1; }
+          
+          az account show --query "{subscriptionId:id, tenantId:tenantId}" -o json
+          echo "::endgroup::"
+
+      # ========== TERRAFORM ==========
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
 
-      - name: Set Environment Variables
-        id: set-creds
-        run: |
-          echo "ARM_CLIENT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .clientId)" >> $GITHUB_ENV
-          echo "ARM_CLIENT_SECRET=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .clientSecret)" >> $GITHUB_ENV
-          echo "ARM_SUBSCRIPTION_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .subscriptionId)" >> $GITHUB_ENV
-          echo "ARM_TENANT_ID=$(echo '${{ secrets.AZURE_CREDENTIALS }}' | jq -r .tenantId)" >> $GITHUB_ENV
-
       - name: Terraform Init
-        run: terraform init -input=false
+        run: terraform init -backend-config="key=prod.terraform.tfstate"
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        run: terraform validate
 
       - name: Terraform Plan
-        run: terraform plan -input=false
+        run: terraform plan -out=tfplan
+        continue-on-error: false
 
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/main'
-        run: terraform apply -auto-approve -input=false
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve tfplan
+
+      # ========== CLEANUP ==========
+      - name: Remove Sensitive Files
+        if: always()
+        run: |
+          rm -f tfplan
+          rm -f terraform.tfvars
