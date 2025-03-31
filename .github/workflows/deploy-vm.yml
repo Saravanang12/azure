@@ -45,15 +45,20 @@ jobs:
           ARM_USE_OIDC: true
 
       - name: Validate Terraform Configuration
-        run: terraform validate
+        run: |
+          terraform validate || { echo "Terraform validation failed. Exiting."; exit 1; }
 
       - name: Check & Force Unlock Terraform State (if locked)
         run: |
-          LOCK_ID=$(terraform state pull | jq -r '.lock.id // empty' 2>/dev/null)
+          LOCK_ID=$(terraform state pull 2>/dev/null | jq -r '.lock.id // empty')
           if [ -n "$LOCK_ID" ]; then
             echo "Terraform state is locked with ID: $LOCK_ID"
             echo "Attempting to unlock..."
-            terraform force-unlock -force "$LOCK_ID" && echo "Lock released successfully!" || echo "Failed to unlock state."
+            if terraform force-unlock -force "$LOCK_ID"; then
+              echo "Lock released successfully!"
+            else
+              echo "Failed to unlock state. Proceeding with caution."
+            fi
           else
             echo "No active Terraform lock detected."
           fi
@@ -67,11 +72,16 @@ jobs:
         run: |
           n=0
           until [ "$n" -ge 5 ]; do
+            LOCK_ID=$(terraform state pull 2>/dev/null | jq -r '.lock.id // empty')
+            if [ -n "$LOCK_ID" ]; then
+              echo "Attempting to unlock Terraform state..."
+              terraform force-unlock -force "$LOCK_ID" && echo "Lock released successfully!" || echo "Failed to unlock state."
+            fi
             if terraform plan -out=tfplan -lock-timeout=60s; then
               echo "Terraform plan executed successfully."
               break
             else
-              echo "Terraform state is locked. Retrying in 15 seconds..."
+              echo "Terraform state is locked or another issue occurred. Retrying in 15 seconds..."
               sleep 15
               n=$((n+1))
             fi
