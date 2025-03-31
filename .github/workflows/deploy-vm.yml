@@ -29,15 +29,7 @@ jobs:
           terraform_version: 1.6.6  # Ensure this matches your Terraform version
 
       - name: Initialize Terraform
-        run: |
-          terraform init \
-            -backend-config="storage_account_name=${{ secrets.AZURE_STORAGE_ACCOUNT }}" \
-            -backend-config="container_name=tfstate" \
-            -backend-config="key=terraform.tfstate" \
-            -backend-config="use_azuread_auth=true" \
-            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
-            -backend-config="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
-            -lock-timeout=300s
+        run: terraform init
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -45,102 +37,18 @@ jobs:
           ARM_USE_OIDC: true
 
       - name: Validate Terraform Configuration
-        run: |
-          if ! terraform validate; then
-            echo "❌ Terraform validation failed. Exiting."
-            exit 1
-          fi
+        run: terraform validate
 
-      - name: Check & Force Unlock Terraform State (if locked)
-        run: |
-          STATE_JSON=$(terraform state pull 2>/dev/null || echo '{}')
-
-          # Check if state JSON is empty or invalid
-          if [ -z "$STATE_JSON" ] || [ "$STATE_JSON" = "{}" ]; then
-            echo "⚠️ No Terraform state found. Skipping unlock check."
-            exit 0
-          fi
-
-          if ! echo "$STATE_JSON" | jq empty 2>/dev/null; then
-            echo "❌ Error: Invalid Terraform state JSON. Check backend configuration."
-            exit 1
-          fi
-
-          LOCK_ID=$(echo "$STATE_JSON" | jq -r '.lock.id // ""')
-
-          if [ -n "$LOCK_ID" ] && [ "$LOCK_ID" != "null" ]; then
-            echo "🔒 Terraform state is locked with ID: $LOCK_ID"
-            echo "Attempting to unlock..."
-            if terraform force-unlock -force "$LOCK_ID"; then
-              echo "✅ Lock released successfully!"
-            else
-              echo "⚠️ Failed to unlock state. Proceeding with caution."
-            fi
-          else
-            echo "✅ No active Terraform lock detected."
-          fi
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           ARM_USE_OIDC: true
 
-      - name: Terraform Plan (with Retry for Lock Handling)
-        run: |
-          n=0
-          until [ "$n" -ge 5 ]; do
-            STATE_JSON=$(terraform state pull 2>/dev/null || echo '{}')
-
-            # Validate JSON before extracting LOCK_ID
-            if [ -z "$STATE_JSON" ] || [ "$STATE_JSON" = "{}" ]; then
-              echo "⚠️ No Terraform state found. Retrying in 15 seconds..."
-              sleep 15
-              n=$((n+1))
-              continue
-            fi
-
-            if ! echo "$STATE_JSON" | jq empty 2>/dev/null; then
-              echo "⚠️ Invalid Terraform state JSON. Retrying in 15 seconds..."
-              sleep 15
-              n=$((n+1))
-              continue
-            fi
-
-            LOCK_ID=$(echo "$STATE_JSON" | jq -r '.lock.id // ""')
-
-            if [ -n "$LOCK_ID" ] && [ "$LOCK_ID" != "null" ]; then
-              echo "🔒 Terraform state is locked. Attempting to unlock..."
-              terraform force-unlock -force "$LOCK_ID" && echo "✅ Lock released successfully!" || echo "⚠️ Failed to unlock state."
-            fi
-
-            if terraform plan -out=tfplan -lock-timeout=60s; then
-              echo "✅ Terraform plan executed successfully."
-              break
-            else
-              echo "⚠️ Terraform plan failed due to state lock or another issue. Retrying in 15 seconds..."
-              sleep 15
-              n=$((n+1))
-            fi
-          done
-
-          if [ "$n" -ge 5 ]; then
-            echo "❌ Failed to acquire Terraform state lock after multiple retries. Exiting."
-            exit 1
-          fi
-        env:
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          ARM_USE_OIDC: true
-
-      - name: Terraform Apply (Only if changes detected)
-        run: |
-          if terraform show -json tfplan | jq -e '.resource_changes | length > 0' >/dev/null; then
-            echo "🔄 Changes detected. Applying Terraform plan..."
-            terraform apply -auto-approve tfplan
-          else
-            echo "✅ No changes detected. Skipping apply."
-          fi
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
