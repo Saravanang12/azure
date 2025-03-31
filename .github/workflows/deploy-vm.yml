@@ -55,9 +55,14 @@ jobs:
         run: |
           STATE_JSON=$(terraform state pull 2>/dev/null || echo '{}')
 
-          # Validate JSON before processing
+          # Check if state JSON is empty or invalid
+          if [ -z "$STATE_JSON" ] || [ "$STATE_JSON" = "{}" ]; then
+            echo "⚠️ No Terraform state found. Skipping unlock check."
+            exit 0
+          fi
+
           if ! echo "$STATE_JSON" | jq empty 2>/dev/null; then
-            echo "⚠️ Error: Invalid Terraform state JSON. Skipping unlock check."
+            echo "❌ Error: Invalid Terraform state JSON. Check backend configuration."
             exit 1
           fi
 
@@ -87,6 +92,13 @@ jobs:
             STATE_JSON=$(terraform state pull 2>/dev/null || echo '{}')
 
             # Validate JSON before extracting LOCK_ID
+            if [ -z "$STATE_JSON" ] || [ "$STATE_JSON" = "{}" ]; then
+              echo "⚠️ No Terraform state found. Retrying in 15 seconds..."
+              sleep 15
+              n=$((n+1))
+              continue
+            fi
+
             if ! echo "$STATE_JSON" | jq empty 2>/dev/null; then
               echo "⚠️ Invalid Terraform state JSON. Retrying in 15 seconds..."
               sleep 15
