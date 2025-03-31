@@ -33,7 +33,11 @@ jobs:
           terraform init \
             -backend-config="storage_account_name=${{ secrets.AZURE_STORAGE_ACCOUNT }}" \
             -backend-config="container_name=tfstate" \
-            -backend-config="key=terraform.tfstate"
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="use_azuread_auth=true" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -backend-config="lock_timeout=300s"
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
