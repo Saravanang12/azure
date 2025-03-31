@@ -36,7 +36,8 @@ jobs:
             -backend-config="key=terraform.tfstate" \
             -backend-config="use_azuread_auth=true" \
             -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
-            -backend-config="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+            -backend-config="subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -lock-timeout=300s
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -46,13 +47,28 @@ jobs:
       - name: Validate Terraform Configuration
         run: terraform validate
 
-      - name: Terraform Plan (with Unlock Retry)
+      - name: Check & Unlock Terraform State (if needed)
+        run: |
+          LOCK_ID=$(terraform state pull | jq -r '.serial' 2>/dev/null)
+          if [ -n "$LOCK_ID" ]; then
+            echo "Terraform state is locked. Attempting to unlock..."
+            terraform force-unlock "$LOCK_ID" || echo "No lock found or unable to unlock."
+          else
+            echo "No state lock detected."
+          fi
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_USE_OIDC: true
+
+      - name: Terraform Plan (with Lock Handling)
         run: |
           n=0
           until [ "$n" -ge 5 ]; do
-            terraform plan -out=tfplan && break
-            echo "Terraform state is locked. Retrying in 10 seconds..."
-            sleep 10
+            terraform plan -out=tfplan -lock-timeout=300s && break
+            echo "Terraform state is locked. Retrying in 15 seconds..."
+            sleep 15
             n=$((n+1))
           done
         env:
