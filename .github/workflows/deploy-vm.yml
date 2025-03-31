@@ -29,12 +29,16 @@ jobs:
           terraform_version: 1.6.6  # Ensure this matches your Terraform version
 
       - name: Initialize Terraform
-        run: terraform init
+        run: |
+          terraform init \
+            -backend-config="storage_account_name=${{ secrets.AZURE_STORAGE_ACCOUNT }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=terraform.tfstate"
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          ARM_USE_OIDC: true  # 🔥 Important for OIDC authentication
+          ARM_USE_OIDC: true  # Important for OIDC authentication
 
       - name: Validate Terraform Configuration
         run: terraform validate
@@ -48,7 +52,12 @@ jobs:
           ARM_USE_OIDC: true
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve tfplan
+        run: |
+          if terraform show -json tfplan | jq '.planned_values.root_module' | grep -q null; then
+            echo "No changes detected. Skipping apply."
+          else
+            terraform apply -auto-approve tfplan
+          fi
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
