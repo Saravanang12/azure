@@ -49,12 +49,12 @@ jobs:
 
       - name: Check & Unlock Terraform State (if needed)
         run: |
-          LOCK_ID=$(terraform state pull | jq -r '.serial' 2>/dev/null)
+          LOCK_ID=$(terraform force-unlock --help | grep -oP "(?<=Lock ID: )\S+" || echo "")
           if [ -n "$LOCK_ID" ]; then
-            echo "Terraform state is locked. Attempting to unlock..."
-            terraform force-unlock "$LOCK_ID" || echo "No lock found or unable to unlock."
+            echo "Terraform state is locked with ID $LOCK_ID. Attempting to unlock..."
+            terraform force-unlock -force "$LOCK_ID" || echo "Failed to unlock state."
           else
-            echo "No state lock detected."
+            echo "No Terraform lock detected."
           fi
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
