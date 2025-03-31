@@ -49,12 +49,12 @@ jobs:
 
       - name: Check & Unlock Terraform State (if needed)
         run: |
-          LOCK_ID=$(terraform force-unlock --help | grep -oP "(?<=Lock ID: )\S+" || echo "")
+          LOCK_ID=$(terraform state pull | jq -r '.serial' 2>/dev/null)
           if [ -n "$LOCK_ID" ]; then
-            echo "Terraform state is locked with ID $LOCK_ID. Attempting to unlock..."
-            terraform force-unlock -force "$LOCK_ID" || echo "Failed to unlock state."
+            echo "Terraform state is locked. Attempting to unlock with ID $LOCK_ID..."
+            terraform force-unlock "$LOCK_ID" || echo "No lock found or unable to unlock."
           else
-            echo "No Terraform lock detected."
+            echo "No state lock detected."
           fi
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -66,11 +66,19 @@ jobs:
         run: |
           n=0
           until [ "$n" -ge 5 ]; do
-            terraform plan -out=tfplan -lock-timeout=300s && break
-            echo "Terraform state is locked. Retrying in 15 seconds..."
-            sleep 15
-            n=$((n+1))
+            if terraform plan -out=tfplan -lock-timeout=60s; then
+              echo "Terraform plan executed successfully."
+              break
+            else
+              echo "Terraform state is locked. Retrying in 15 seconds..."
+              sleep 15
+              n=$((n+1))
+            fi
           done
+          if [ "$n" -ge 5 ]; then
+            echo "Failed to acquire Terraform state lock after multiple retries."
+            exit 1
+          fi
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
