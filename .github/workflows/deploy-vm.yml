@@ -54,7 +54,7 @@ jobs:
       - name: Check & Force Unlock Terraform State (if locked)
         run: |
           STATE_JSON=$(terraform state pull 2>/dev/null || echo '{}')
-          LOCK_ID=$(echo "$STATE_JSON" | jq -r '.lock.id // empty')
+          LOCK_ID=$(echo "$STATE_JSON" | jq -r '.lock.id // ""')
 
           if [ -n "$LOCK_ID" ]; then
             echo "Terraform state is locked with ID: $LOCK_ID"
@@ -79,7 +79,7 @@ jobs:
           until [ "$n" -ge 5 ]; do
             # Ensure valid JSON before extracting LOCK_ID
             STATE_JSON=$(terraform state pull 2>/dev/null || echo '{}')
-            LOCK_ID=$(echo "$STATE_JSON" | jq -r '.lock.id // empty')
+            LOCK_ID=$(echo "$STATE_JSON" | jq -r '.lock.id // ""')
 
             if [ -n "$LOCK_ID" ]; then
               echo "Terraform state is locked. Attempting to unlock..."
