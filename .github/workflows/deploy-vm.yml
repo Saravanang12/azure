@@ -38,7 +38,7 @@ jobs:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          ARM_USE_OIDC: true  # Important for OIDC authentication
+          ARM_USE_OIDC: true
 
       - name: Validate Terraform Configuration
         run: terraform validate
@@ -51,9 +51,9 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           ARM_USE_OIDC: true
 
-      - name: Terraform Apply
+      - name: Terraform Apply (Only if changes detected)
         run: |
-          if terraform show -json tfplan | jq '.planned_values.root_module' | grep -q null; then
+          if terraform show -json tfplan | jq -e '.resource_changes | length == 0' >/dev/null; then
             echo "No changes detected. Skipping apply."
           else
             terraform apply -auto-approve tfplan
